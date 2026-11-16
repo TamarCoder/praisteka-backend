@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { AuthService, type UserView } from './auth.service.js';
 import { IS_PUBLIC_KEY } from './public.decorator.js';
+import { readSessionCookie } from './session-cookie.js';
 
 export interface AuthedRequest extends Request {
   user?: UserView;
@@ -15,7 +16,8 @@ export function readBearer(request: Request): string | null {
   return scheme?.toLowerCase() === 'bearer' && token ? token : null;
 }
 
-// Every non-public route needs "Authorization: Bearer <session token>".
+// Every non-public route needs a session: the HttpOnly cookie (web app) or
+// "Authorization: Bearer <session token>" (admin app).
 // On public routes a valid token is still attached, so they can know the caller.
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -27,7 +29,7 @@ export class SessionGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()]);
     const request = context.switchToHttp().getRequest<AuthedRequest>();
-    const token = readBearer(request);
+    const token = readBearer(request) ?? readSessionCookie(request);
     const user = token ? await this.auth.findUserByToken(token) : null;
 
     if (user && token) {

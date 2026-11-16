@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
@@ -8,6 +9,7 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginThrottlerGuard } from './login-throttler.guard.js';
 import { Public } from './public.decorator.js';
 import type { AuthedRequest } from './session.guard.js';
+import { clearSessionCookie, setSessionCookie } from './session-cookie.js';
 
 @Controller('api/auth')
 export class AuthController {
@@ -24,14 +26,18 @@ export class AuthController {
   @UseGuards(LoginThrottlerGuard)
   @Post('login')
   @HttpCode(200)
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) response: Response) {
+    const { token, expiresAt, user } = await this.auth.login(dto);
+    setSessionCookie(response, token, new Date(expiresAt));
+    // The token stays out of the body: page scripts never see it.
+    return { expiresAt, user };
   }
 
   @Post('logout')
   @HttpCode(204)
-  async logout(@Req() request: AuthedRequest): Promise<void> {
+  async logout(@Req() request: AuthedRequest, @Res({ passthrough: true }) response: Response): Promise<void> {
     if (request.sessionToken) await this.auth.logout(request.sessionToken);
+    clearSessionCookie(response);
   }
 
   @Get('me')
@@ -52,7 +58,8 @@ export class AuthController {
 
   @Delete('me')
   @HttpCode(204)
-  deleteAccount(@Req() request: AuthedRequest) {
-    return this.auth.deleteAccount(request.user!.id);
+  async deleteAccount(@Req() request: AuthedRequest, @Res({ passthrough: true }) response: Response) {
+    await this.auth.deleteAccount(request.user!.id);
+    clearSessionCookie(response);
   }
 }
