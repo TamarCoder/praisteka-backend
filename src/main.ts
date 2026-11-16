@@ -4,7 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 import { UniqueViolationFilter } from './database/unique-violation.filter.js';
 
-// 3000 = praisteka (main app), 3001 = praisteka-admin.
+// 3000 = priceteka (main app), 3001 = priceteka-admin.
 const DEFAULT_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001'];
 // Parsed Excel workbooks travel as JSON; the default 100 KB is too small.
 const JSON_LIMIT = '10mb';

@@ -1,7 +1,7 @@
 {
-  "name": "praisteka-backend",
+  "name": "priceteka-backend",
   "version": "0.0.1",
-  "description": "Praisteka REST API",
+  "description": "Priceteka REST API",
   "author": "TamarCoder",
   "private": true,
   "license": "UNLICENSED",
