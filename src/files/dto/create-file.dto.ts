@@ -25,6 +25,13 @@ export class CreateFileDto {
   @IsUUID()
   folderId?: string;
 
+  // Note for version 1, saved in the same request (upload = file + version 1).
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+
   // Parsed workbook from the frontend (readWorkbook). Not validated cell by cell.
   @IsArray()
   @ArrayMaxSize(100)

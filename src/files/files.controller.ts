@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { UserView } from '../auth/auth.service.js';
 import { CreateFileDto } from './dto/create-file.dto.js';
 import { CreateSnapshotDto } from './dto/create-snapshot.dto.js';
+import { SearchFilesDto } from './dto/search-files.dto.js';
 import { UpdateFileDto } from './dto/update-file.dto.js';
 import { FilesService } from './files.service.js';
 
@@ -24,6 +25,12 @@ export class FilesController {
   @HttpCode(204)
   removeAll(@CurrentUser() user: UserView) {
     return this.files.removeAll(user.id);
+  }
+
+  // Before ':id', so "search" is not read as a file id.
+  @Get('search')
+  search(@CurrentUser() user: UserView, @Query() dto: SearchFilesDto) {
+    return this.files.search(user.id, dto.q);
   }
 
   @Get(':id')

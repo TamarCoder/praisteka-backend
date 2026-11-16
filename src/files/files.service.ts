@@ -8,6 +8,7 @@ import type { CreateFileDto } from './dto/create-file.dto.js';
 import type { UpdateFileDto } from './dto/update-file.dto.js';
 import { Snapshot } from './entities/snapshot.entity.js';
 import { UserFile } from './entities/user-file.entity.js';
+import { searchSheets, type SearchGroup } from './search-sheets.js';
 
 @Injectable()
 export class FilesService {
@@ -36,17 +37,21 @@ export class FilesService {
   async create(userId: string, dto: CreateFileDto): Promise<UserFile> {
     if (dto.folderId) await this.folders.findOwn(userId, dto.folderId);
     const company = await this.findOrCreateCompany(userId, dto.companyName);
-    const saved = await this.files.save(
-      this.files.create({
-        userId,
-        companyId: company.id,
-        folderId: dto.folderId ?? null,
-        fileName: dto.fileName,
-        effectiveFrom: dto.effectiveFrom,
-        sheets: dto.sheets,
-      }),
-    );
-    return this.findOne(userId, saved.id);
+    // File and version 1 together: one request from the browser, no half-saved upload.
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.save(
+        manager.create(UserFile, {
+          userId,
+          companyId: company.id,
+          folderId: dto.folderId ?? null,
+          fileName: dto.fileName,
+          effectiveFrom: dto.effectiveFrom,
+          sheets: dto.sheets,
+        }),
+      );
+      await manager.save(manager.create(Snapshot, { fileId: saved.id, n: 1, note: dto.note ?? '', sheets: dto.sheets }));
+      return saved;
+    });
   }
 
   async update(userId: string, id: string, dto: UpdateFileDto): Promise<UserFile> {
@@ -54,8 +59,8 @@ export class FilesService {
     if (dto.folderId) await this.folders.findOwn(userId, dto.folderId);
     if (dto.sheets !== undefined) file.sheets = dto.sheets;
     if (dto.folderId !== undefined) file.folderId = dto.folderId;
-    await this.files.save(file);
-    return this.findOne(userId, id);
+    // The saved entity already holds every field; no second read of the whole workbook.
+    return this.files.save(file);
   }
 
   // The company is removed too when it has no other files.
@@ -99,7 +104,18 @@ export class FilesService {
     const saved = await this.snapshots.save(
       this.snapshots.create({ fileId, n: (last ?? 0) + 1, note, sheets: file.sheets }),
     );
-    return this.findSnapshot(userId, fileId, saved.id);
+    // Without sheets: the caller only needs the version's number and date.
+    const { sheets: _sheets, ...rest } = saved;
+    return rest as Snapshot;
+  }
+
+  async search(userId: string, query: string): Promise<SearchGroup[]> {
+    const files = await this.files.find({
+      where: { userId },
+      select: { id: true, fileName: true, sheets: true },
+      order: { effectiveFrom: 'DESC' },
+    });
+    return searchSheets(files, query);
   }
 
   private async findOrCreateCompany(userId: string, rawName: string): Promise<Company> {
